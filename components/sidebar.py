@@ -1,130 +1,40 @@
 import streamlit as st
-from utils.helpers import extract_folder_name_from_url
 
 
 def render_sidebar():
-    """Рендерит боковую панель с настройками"""
+    """Рендерит боковую панель с навигацией и статистикой"""
 
     with st.sidebar:
-        st.header("📂 Настройка папки")
+        st.header("🧭 Навигация")
 
-        # Инструкция
-        with st.expander("📖 Как использовать"):
-            st.markdown("""
-            **Шаги:**
-            1. Вставьте ссылку на папку Google Drive
-            2. Укажите категорию (название папки)  
-            3. Введите список файлов изображений
-            4. Начните разметку!
+        # Навигация между изображениями (если загружены)
+        if st.session_state.images_list:
+            total_images = len(st.session_state.images_list)
+            current_idx = st.session_state.current_image_index
 
-            **Требования:**
-            - Папка должна быть доступна по ссылке
-            - Нужны названия всех файлов изображений
-            """)
+            st.markdown(f"**Изображение {current_idx + 1} из {total_images}**")
 
-        # Ссылка на папку
-        folder_url = st.text_input(
-            "🔗 Ссылка на папку:",
-            placeholder="https://drive.google.com/drive/folders/1ABC...",
-            help="Ссылка на папку Google Drive с изображениями"
-        )
+            # Прогресс бар навигации
+            progress = (current_idx + 1) / total_images
+            st.progress(progress)
 
-        # Автоматическое извлечение названия или ручной ввод
-        auto_name = extract_folder_name_from_url(folder_url) if folder_url else ""
-        folder_name = st.text_input(
-            "📁 Категория одежды:",
-            value=auto_name,
-            placeholder="юбка, штаны, шорты, шляпа...",
-            help="Название категории для разметки"
-        )
+            # Быстрый переход
+            new_index = st.selectbox(
+                "Перейти к изображению:",
+                range(total_images),
+                index=current_idx,
+                format_func=lambda
+                    x: f"{x + 1}. {st.session_state.images_list[x][:30]}{'...' if len(st.session_state.images_list[x]) > 30 else ''}"
+            )
 
-        if folder_name:
-            st.session_state.folder_name = folder_name
+            if new_index != current_idx:
+                st.session_state.current_image_index = new_index
+                st.rerun()
 
-        # Автоматическое получение файлов
-        if st.session_state.folder_name and folder_url:
-            st.markdown("---")
-            st.subheader("📁 Автозагрузка файлов")
-
-            # Тестируем доступ к папке
-            if st.button("🔍 Найти файлы автоматически", use_container_width=True):
-                with st.spinner("Получаю список файлов из Google Drive..."):
-                    try:
-                        from utils.google_drive import (
-                            test_folder_access,
-                            cached_get_files_from_folder,
-                            format_file_info,
-                            validate_files_data
-                        )
-
-                        # Проверяем доступ
-                        access_ok, access_msg = test_folder_access(folder_url)
-
-                        if not access_ok:
-                            st.error(f"❌ {access_msg}")
-                            st.info("💡 Убедитесь что папка доступна 'всем, у кого есть ссылка'")
-                        else:
-                            # Получаем файлы
-                            files_data = cached_get_files_from_folder(folder_url)
-
-                            # Валидируем
-                            is_valid, validation_msg = validate_files_data(files_data)
-
-                            if is_valid:
-                                # Сохраняем данные о файлах
-                                st.session_state.files_data = files_data
-                                filenames = [f['filename'] for f in files_data]
-                                st.session_state.images_list = filenames
-                                st.session_state.current_image_index = 0
-
-                                st.success(f"✅ {validation_msg}")
-
-                                # Показываем информацию
-                                with st.expander("📋 Найденные файлы"):
-                                    st.text(format_file_info(files_data))
-
-                                st.rerun()
-                            else:
-                                st.error(f"❌ {validation_msg}")
-
-                    except Exception as e:
-                        st.error(f"❌ Ошибка: {str(e)}")
-                        st.info("💡 Попробуйте ручной ввод файлов ниже")
-
-            # Ручной ввод как запасной вариант
-            with st.expander("📝 Ручной ввод файлов (если автозагрузка не работает)"):
-                files_text = st.text_area(
-                    "Названия файлов:",
-                    placeholder="zr2509033501_262.jpg\nimage_001.png\nDSC_1234.jpeg",
-                    height=150,
-                    help="Введите по одному файлу на строку"
-                )
-
-                if st.button("✅ Загрузить вручную", use_container_width=True):
-                    if files_text.strip():
-                        filenames = [f.strip() for f in files_text.split('\n') if f.strip()]
-                        # Фильтруем только файлы изображений
-                        image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'}
-                        valid_files = []
-
-                        for filename in filenames:
-                            if any(filename.lower().endswith(ext) for ext in image_extensions):
-                                valid_files.append(filename)
-
-                        if valid_files:
-                            st.session_state.images_list = valid_files
-                            st.session_state.current_image_index = 0
-                            st.success(f"✅ Загружено {len(valid_files)} изображений")
-                            st.rerun()
-                        else:
-                            st.error("❌ Не найдено файлов изображений")
-                    else:
-                        st.error("❌ Введите список файлов")
-
-        # Статистика (если есть загруженные файлы)
+        # Статистика разметки
         if st.session_state.images_list:
             st.markdown("---")
-            st.subheader("📊 Статистика")
+            st.header("📊 Статистика")
 
             total_images = len(st.session_state.images_list)
             annotated_count = len(st.session_state.annotations)
@@ -137,25 +47,133 @@ def render_sidebar():
                 st.progress(progress)
                 st.caption(f"{progress * 100:.1f}% завершено")
 
-            # Быстрые действия
-            st.markdown("**🔧 Действия:**")
+            # Показываем статистику по категориям
+            if st.session_state.annotations:
+                with st.expander("📈 Детальная статистика"):
+                    from utils.annotations import get_annotation_stats
+                    stats = get_annotation_stats()
 
-            if st.button("🗑️ Очистить все разметки", use_container_width=True):
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        st.metric("Валидных", stats['valid'])
+                        st.metric("Невалидных", stats['invalid'])
+
+                    with col2:
+                        if stats['by_gender']:
+                            st.markdown("**По полу:**")
+                            for gender, count in stats['by_gender'].items():
+                                st.text(f"{gender}: {count}")
+
+                        if stats['by_category']:
+                            st.markdown("**По категориям:**")
+                            for category, count in stats['by_category'].items():
+                                st.text(f"{category}: {count}")
+
+        # Быстрые действия
+        if st.session_state.images_list:
+            st.markdown("---")
+            st.header("⚡ Быстрые действия")
+
+            # Переход к следующему неразмеченному
+            unannotated_files = get_unannotated_files()
+            if unannotated_files:
+                if st.button("➡️ К неразмеченному", use_container_width=True):
+                    next_idx = get_next_unannotated_index()
+                    if next_idx is not None:
+                        st.session_state.current_image_index = next_idx
+                        st.rerun()
+
+                st.caption(f"Осталось: {len(unannotated_files)} изображений")
+            else:
+                st.success("✅ Все изображения размечены!")
+
+            # Очистка данных
+            if st.button("🗑️ Очистить всё", use_container_width=True):
                 if st.session_state.annotations:
                     st.session_state.annotations = []
                     st.success("Разметки очищены")
                     st.rerun()
 
-            if st.button("🔄 Перезагрузить список", use_container_width=True):
-                st.session_state.images_list = []
-                st.session_state.current_image_index = 0
+            # Перезагрузка
+            if st.button("🔄 Новый архив", use_container_width=True):
+                # Очищаем все данные для загрузки нового архива
+                for key in ['images_list', 'image_paths', 'annotations', 'folder_name', 'current_image_index']:
+                    if key in st.session_state:
+                        if key == 'current_image_index':
+                            st.session_state[key] = 0
+                        elif key in ['images_list', 'annotations']:
+                            st.session_state[key] = []
+                        elif key in ['image_paths']:
+                            st.session_state[key] = {}
+                        else:
+                            st.session_state[key] = ""
                 st.rerun()
 
-        # Информация о текущей сессии
-        if st.session_state.folder_name:
-            st.markdown("---")
-            st.caption("ℹ️ **Текущая сессия:**")
-            st.caption(f"Папка: {st.session_state.folder_name}")
-            if st.session_state.images_list:
-                current_file = st.session_state.images_list[st.session_state.current_image_index]
-                st.caption(f"Файл: {current_file}")
+        # Помощь и информация
+        st.markdown("---")
+        st.header("❓ Помощь")
+
+        with st.expander("🔧 Горячие клавиши"):
+            st.markdown("""
+            **Навигация:**
+            - `←` / `→` - Предыдущее/Следующее
+            - `Ctrl + ←` / `Ctrl + →` - К началу/концу
+
+            **Разметка:**
+            - `V` - Валидно
+            - `N` - Невалидно
+            - `M` - Мужской
+            - `F` - Женский
+            """)
+
+        with st.expander("📋 Формат CSV"):
+            st.markdown("""
+            **Столбцы выходного файла:**
+            - `img_path` - путь к изображению
+            - `validity` - валидность (Валидно/Невалидно)
+            - `gender` - пол (М/Ж/М/Ж)
+            - `category` - категория одежды
+
+            **Пример:**
+            ```
+            img_path,validity,gender,category
+            юбка/img1.jpg,Валидно,Ж,низ
+            штаны/img2.jpg,Валидно,М,низ
+            ```
+            """)
+
+
+def get_unannotated_files():
+    """Возвращает список неразмеченных файлов"""
+    if not st.session_state.images_list:
+        return []
+
+    annotated_files = {ann['filename'] for ann in st.session_state.annotations}
+
+    return [
+        filename for filename in st.session_state.images_list
+        if filename not in annotated_files
+    ]
+
+
+def get_next_unannotated_index():
+    """Возвращает индекс следующего неразмеченного файла"""
+    unannotated_files = get_unannotated_files()
+
+    if not unannotated_files:
+        return None
+
+    # Ищем первый неразмеченный файл после текущего
+    current_idx = st.session_state.current_image_index
+
+    for i in range(current_idx + 1, len(st.session_state.images_list)):
+        if st.session_state.images_list[i] in unannotated_files:
+            return i
+
+    # Если не найден после текущего, ищем с начала
+    for i in range(current_idx):
+        if st.session_state.images_list[i] in unannotated_files:
+            return i
+
+    return None
