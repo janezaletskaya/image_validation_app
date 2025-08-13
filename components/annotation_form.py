@@ -16,6 +16,11 @@ def render_annotation_form(filename):
     else:
         st.info("⏳ Требует разметки")
 
+    # БЫСТРЫЕ ДЕЙСТВИЯ НАВЕРХУ
+    render_quick_actions(filename)
+
+    st.markdown("---")
+
     # Форма разметки
     with st.form(key=f"annotation_form_{st.session_state.current_image_index}"):
 
@@ -91,9 +96,6 @@ def render_annotation_form(filename):
     # Показываем текущую разметку
     if current_annotation:
         show_current_annotation(current_annotation)
-
-    # Быстрые действия
-    render_quick_actions(filename)
 
     # Дополнительные возможности
     render_annotation_shortcuts()
@@ -175,25 +177,63 @@ def show_current_annotation(annotation):
 def render_quick_actions(filename):
     """Рендерит быстрые действия"""
 
-    st.markdown("---")
     st.markdown("#### ⚡ Быстрые действия")
+    st.caption("Для быстрой разметки популярных случаев")
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        if st.button("✅ Валидно + Ж + верх", use_container_width=True):
+        if st.button("✅ Валидно + Ж + верх", use_container_width=True,
+                     help="Валидная женская одежда, категория 'верх'"):
             save_annotation(filename, "Валидно", "Ж", "верх", st.session_state.folder_name)
             advance_to_next()
 
     with col2:
-        if st.button("✅ Валидно + Ж + низ", use_container_width=True):
+        if st.button("✅ Валидно + Ж + низ", use_container_width=True, help="Валидная женская одежда, категория 'низ'"):
             save_annotation(filename, "Валидно", "Ж", "низ", st.session_state.folder_name)
             advance_to_next()
 
     with col3:
-        if st.button("❌ Невалидно", use_container_width=True):
-            save_annotation(filename, "Невалидно", "Ж", "верх", st.session_state.folder_name)
+        if st.button("❌ Невалидно", use_container_width=True, help="Изображение не подходит для обучения"):
+            # Для невалидных изображений сохраняем только валидность, без пола и категории
+            save_invalid_annotation(filename, st.session_state.folder_name)
             advance_to_next()
+
+
+def save_invalid_annotation(filename, folder_name):
+    """Сохраняет разметку для невалидного изображения (только валидность)"""
+
+    try:
+        annotation = {
+            'img_path': f"{folder_name}/{filename}",
+            'filename': filename,
+            'validity': 'Невалидно',
+            'gender': '',  # Пустое поле для невалидных
+            'category': '',  # Пустое поле для невалидных
+            'folder': folder_name,
+            'notes': 'Быстрая разметка: невалидное изображение'
+        }
+
+        # Проверяем, есть ли уже разметка для этого изображения
+        existing_index = None
+        for i, ann in enumerate(st.session_state.annotations):
+            if ann['filename'] == filename:
+                existing_index = i
+                break
+
+        if existing_index is not None:
+            # Обновляем существующую разметку
+            st.session_state.annotations[existing_index] = annotation
+        else:
+            # Добавляем новую разметку
+            st.session_state.annotations.append(annotation)
+
+        st.success("❌ Отмечено как невалидное")
+        return True
+
+    except Exception as e:
+        st.error(f"Ошибка при сохранении: {str(e)}")
+        return False
 
 
 def advance_to_next():

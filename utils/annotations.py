@@ -73,7 +73,15 @@ def export_to_csv(annotations):
         st.error(f"Отсутствуют колонки: {missing_columns}")
         return None
 
+    # Создаем финальный DataFrame для экспорта
     csv_data = df[export_columns].copy()
+
+    # Для невалидных изображений оставляем только img_path и validity
+    # Очищаем gender и category для невалидных записей
+    mask_invalid = csv_data['validity'] == 'Невалидно'
+    csv_data.loc[mask_invalid, 'gender'] = ''
+    csv_data.loc[mask_invalid, 'category'] = ''
+
     return csv_data.to_csv(index=False)
 
 
