@@ -114,34 +114,74 @@ def show_image_area(filename):
     # Информация о файле
     st.info(f"📁 **Файл:** {filename}\n📂 **Папка:** {st.session_state.folder_name}")
 
-    # Поле для прямой ссылки на изображение
+    # Пытаемся найти прямую ссылку из автоматически полученных данных
     current_idx = st.session_state.current_image_index
-    image_url = st.text_input(
-        "🔗 Прямая ссылка на изображение:",
-        placeholder="https://drive.google.com/file/d/FILE_ID/preview",
-        help="Вставьте прямую ссылку для просмотра изображения",
-        key=f"image_url_{current_idx}"
-    )
+    auto_image_url = None
 
+    if hasattr(st.session_state, 'files_data') and st.session_state.files_data:
+        # Ищем текущий файл в данных
+        for file_data in st.session_state.files_data:
+            if file_data['filename'] == filename:
+                auto_image_url = file_data.get('view_url')
+                break
+
+    # Поле для ввода прямой ссылки (если автоматическая не найдена)
+    if auto_image_url:
+        st.success("🔗 Ссылка найдена автоматически!")
+        image_url = auto_image_url
+
+        # Дополнительное поле для ручного ввода (если автоматическая не работает)
+        with st.expander("🔧 Изменить ссылку вручную"):
+            manual_url = st.text_input(
+                "Альтернативная ссылка:",
+                placeholder="https://drive.google.com/file/d/FILE_ID/preview",
+                help="Если автоматическая ссылка не работает",
+                key=f"manual_url_{current_idx}"
+            )
+            if manual_url:
+                image_url = manual_url
+    else:
+        image_url = st.text_input(
+            "🔗 Прямая ссылка на изображение:",
+            placeholder="https://drive.google.com/file/d/FILE_ID/preview",
+            help="Вставьте прямую ссылку для просмотра изображения",
+            key=f"image_url_{current_idx}"
+        )
+
+    # Показываем изображение
     if image_url:
         try:
             st.image(image_url, use_column_width=True, caption=filename)
         except Exception as e:
             st.error(f"❌ Ошибка загрузки: {str(e)}")
             show_placeholder_image()
+
+            # Показываем альтернативные ссылки если есть
+            if hasattr(st.session_state, 'files_data'):
+                for file_data in st.session_state.files_data:
+                    if file_data['filename'] == filename and file_data.get('file_id'):
+                        st.info("💡 Попробуйте альтернативные ссылки:")
+                        alt_url1 = f"https://drive.google.com/uc?id={file_data['file_id']}"
+                        alt_url2 = f"https://drive.google.com/file/d/{file_data['file_id']}/view"
+                        st.code(alt_url1)
+                        st.code(alt_url2)
+                        break
     else:
         show_placeholder_image()
 
         with st.expander("💡 Как получить прямую ссылку"):
             st.markdown("""
-            **Быстрый способ:**
+            **Автоматический способ:**
+            1. Используйте кнопку "🔍 Найти файлы автоматически" в боковой панели
+            2. Приложение попытается найти прямые ссылки само
+
+            **Ручной способ:**
             1. Откройте файл в Google Drive
-            2. Нажмите "Поделиться" → "Скопировать ссылку"
+            2. Нажмите "Поделиться" → "Скопировать ссылку"  
             3. Замените `/view?usp=sharing` на `/preview`
 
-            **Пример:**
-            - Было: `https://drive.google.com/file/d/1ABC.../view?usp=sharing`
-            - Стало: `https://drive.google.com/file/d/1ABC.../preview`
+            **Формат ссылки:**
+            `https://drive.google.com/file/d/FILE_ID/preview`
             """)
 
 

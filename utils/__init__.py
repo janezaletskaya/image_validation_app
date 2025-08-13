@@ -33,6 +33,16 @@ from .helpers import (
     validate_annotation_data
 )
 
+from .google_drive import (
+    get_files_from_public_folder,
+    test_folder_access,
+    cached_get_files_from_folder,
+    format_file_info,
+    validate_files_data,
+    get_preview_url,
+    get_direct_download_url
+)
+
 __all__ = [
     # Annotations
     'save_annotation',
@@ -61,5 +71,14 @@ __all__ = [
     'format_annotation_summary',
     'generate_filename_suggestions',
     'sanitize_folder_name',
-    'validate_annotation_data'
+    'validate_annotation_data',
+
+    # Google Drive
+    'get_files_from_public_folder',
+    'test_folder_access',
+    'cached_get_files_from_folder',
+    'format_file_info',
+    'validate_files_data',
+    'get_preview_url',
+    'get_direct_download_url'
 ]

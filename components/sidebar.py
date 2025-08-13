@@ -41,38 +41,85 @@ def render_sidebar():
         if folder_name:
             st.session_state.folder_name = folder_name
 
-        # Список файлов
-        if st.session_state.folder_name:
+        # Автоматическое получение файлов
+        if st.session_state.folder_name and folder_url:
             st.markdown("---")
-            st.subheader("📝 Список файлов")
+            st.subheader("📁 Автозагрузка файлов")
 
-            files_text = st.text_area(
-                f"Файлы в папке '{st.session_state.folder_name}':",
-                placeholder="img1.jpg\nimg2.png\nфото3.jpeg\nDSC_001.jpg",
-                height=200,
-                help="Введите по одному файлу на строку"
-            )
+            # Тестируем доступ к папке
+            if st.button("🔍 Найти файлы автоматически", use_container_width=True):
+                with st.spinner("Получаю список файлов из Google Drive..."):
+                    try:
+                        from utils.google_drive import (
+                            test_folder_access,
+                            cached_get_files_from_folder,
+                            format_file_info,
+                            validate_files_data
+                        )
 
-            if st.button("✅ Загрузить файлы", use_container_width=True):
-                if files_text.strip():
-                    filenames = [f.strip() for f in files_text.split('\n') if f.strip()]
-                    # Фильтруем только файлы изображений
-                    image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'}
-                    valid_files = []
+                        # Проверяем доступ
+                        access_ok, access_msg = test_folder_access(folder_url)
 
-                    for filename in filenames:
-                        if any(filename.lower().endswith(ext) for ext in image_extensions):
-                            valid_files.append(filename)
+                        if not access_ok:
+                            st.error(f"❌ {access_msg}")
+                            st.info("💡 Убедитесь что папка доступна 'всем, у кого есть ссылка'")
+                        else:
+                            # Получаем файлы
+                            files_data = cached_get_files_from_folder(folder_url)
 
-                    if valid_files:
-                        st.session_state.images_list = valid_files
-                        st.session_state.current_image_index = 0
-                        st.success(f"✅ Загружено {len(valid_files)} изображений")
-                        st.rerun()
+                            # Валидируем
+                            is_valid, validation_msg = validate_files_data(files_data)
+
+                            if is_valid:
+                                # Сохраняем данные о файлах
+                                st.session_state.files_data = files_data
+                                filenames = [f['filename'] for f in files_data]
+                                st.session_state.images_list = filenames
+                                st.session_state.current_image_index = 0
+
+                                st.success(f"✅ {validation_msg}")
+
+                                # Показываем информацию
+                                with st.expander("📋 Найденные файлы"):
+                                    st.text(format_file_info(files_data))
+
+                                st.rerun()
+                            else:
+                                st.error(f"❌ {validation_msg}")
+
+                    except Exception as e:
+                        st.error(f"❌ Ошибка: {str(e)}")
+                        st.info("💡 Попробуйте ручной ввод файлов ниже")
+
+            # Ручной ввод как запасной вариант
+            with st.expander("📝 Ручной ввод файлов (если автозагрузка не работает)"):
+                files_text = st.text_area(
+                    "Названия файлов:",
+                    placeholder="zr2509033501_262.jpg\nimage_001.png\nDSC_1234.jpeg",
+                    height=150,
+                    help="Введите по одному файлу на строку"
+                )
+
+                if st.button("✅ Загрузить вручную", use_container_width=True):
+                    if files_text.strip():
+                        filenames = [f.strip() for f in files_text.split('\n') if f.strip()]
+                        # Фильтруем только файлы изображений
+                        image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'}
+                        valid_files = []
+
+                        for filename in filenames:
+                            if any(filename.lower().endswith(ext) for ext in image_extensions):
+                                valid_files.append(filename)
+
+                        if valid_files:
+                            st.session_state.images_list = valid_files
+                            st.session_state.current_image_index = 0
+                            st.success(f"✅ Загружено {len(valid_files)} изображений")
+                            st.rerun()
+                        else:
+                            st.error("❌ Не найдено файлов изображений")
                     else:
-                        st.error("❌ Не найдено файлов изображений")
-                else:
-                    st.error("❌ Введите список файлов")
+                        st.error("❌ Введите список файлов")
 
         # Статистика (если есть загруженные файлы)
         if st.session_state.images_list:
