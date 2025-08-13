@@ -151,16 +151,60 @@ def show_image_area(filename):
     # Показываем изображение
     if image_url:
         try:
-            st.image(image_url, use_column_width=True, caption=filename)
+            st.image(image_url, use_container_width=True, caption=filename)
         except Exception as e:
             st.error(f"❌ Ошибка загрузки: {str(e)}")
-            show_placeholder_image()
+
+            # Пробуем альтернативные форматы URL
+            if 'drive.google.com' in image_url:
+                st.info("🔄 Пробуем альтернативные форматы ссылок...")
+
+                # Извлекаем file_id из разных форматов URL
+                import re
+                file_id_match = re.search(r'/file/d/([a-zA-Z0-9-_]+)', image_url)
+                if not file_id_match:
+                    file_id_match = re.search(r'id=([a-zA-Z0-9-_]+)', image_url)
+
+                if file_id_match:
+                    file_id = file_id_match.group(1)
+
+                    # Пробуем разные форматы
+                    alt_urls = [
+                        f"https://drive.google.com/uc?export=view&id={file_id}",
+                        f"https://drive.google.com/file/d/{file_id}/view",
+                        f"https://drive.google.com/thumbnail?id={file_id}&sz=w1000"
+                    ]
+
+                    success = False
+                    for alt_url in alt_urls:
+                        try:
+                            st.image(alt_url, use_container_width=True, caption=f"{filename} (альтернативная ссылка)")
+                            success = True
+                            break
+                        except:
+                            continue
+
+                    if not success:
+                        show_placeholder_image()
+                        st.error("❌ Не удалось загрузить изображение ни одним способом")
+
+                        # Показываем все пробованные ссылки
+                        with st.expander("🔗 Попробованные ссылки"):
+                            st.write("Основная ссылка:")
+                            st.code(image_url)
+                            st.write("Альтернативные ссылки:")
+                            for i, alt_url in enumerate(alt_urls, 1):
+                                st.code(f"{i}. {alt_url}")
+                else:
+                    show_placeholder_image()
+            else:
+                show_placeholder_image()
 
             # Показываем альтернативные ссылки если есть
             if hasattr(st.session_state, 'files_data'):
                 for file_data in st.session_state.files_data:
                     if file_data['filename'] == filename and file_data.get('file_id'):
-                        st.info("💡 Попробуйте альтернативные ссылки:")
+                        st.info("💡 Попробуйте скопировать эти ссылки:")
                         alt_url1 = f"https://drive.google.com/uc?id={file_data['file_id']}"
                         alt_url2 = f"https://drive.google.com/file/d/{file_data['file_id']}/view"
                         st.code(alt_url1)
@@ -188,7 +232,7 @@ def show_image_area(filename):
 def show_placeholder_image():
     """Показывает заглушку изображения"""
     st.image("https://via.placeholder.com/500x350/f8f9fa/6c757d?text=Изображение+не+загружено",
-             use_column_width=True,
+             use_container_width=True,
              caption="Введите прямую ссылку для просмотра")
 
 

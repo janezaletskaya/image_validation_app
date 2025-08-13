@@ -71,44 +71,86 @@ def extract_files_from_html(html_content):
 
     files = []
 
-    # Паттерны для поиска файлов изображений
-    image_patterns = [
-        r'"([^"]*\.(?:jpg|jpeg|png|gif|bmp|webp))"[^"]*"([^"]*)"',
-        r"'([^']*\.(?:jpg|jpeg|png|gif|bmp|webp))'[^']*'([^']*)'",
-        # Поиск ID файлов и имен
-        r'"id":"([^"]{20,})"[^}]*"name":"([^"]*\.(?:jpg|jpeg|png|gif|bmp|webp))"',
+    # Более агрессивные паттерны для поиска файлов и их ID
+    patterns = [
+        # Паттерн 1: JSON структуры с ID и именем
+        r'"([a-zA-Z0-9_-]{25,})"[^}]*?"([^"]*\.(?:jpg|jpeg|png|gif|bmp|webp))"',
+        r'"([^"]*\.(?:jpg|jpeg|png|gif|bmp|webp))"[^}]*?"([a-zA-Z0-9_-]{25,})"',
+
+        # Паттерн 2: Прямые вхождения
+        r'data-id="([a-zA-Z0-9_-]{25,})"[^>]*?title="([^"]*\.(?:jpg|jpeg|png|gif|bmp|webp))"',
+        r'title="([^"]*\.(?:jpg|jpeg|png|gif|bmp|webp))"[^>]*?data-id="([a-zA-Z0-9_-]{25,})"',
+
+        # Паттерн 3: В скриптах
+        r'"id":"([a-zA-Z0-9_-]{25,})"[^}]*?"name":"([^"]*\.(?:jpg|jpeg|png|gif|bmp|webp))"',
+        r'"name":"([^"]*\.(?:jpg|jpeg|png|gif|bmp|webp))"[^}]*?"id":"([a-zA-Z0-9_-]{25,})"',
     ]
 
-    for pattern in image_patterns:
+    found_files = {}  # Используем dict для избежания дубликатов
+
+    for pattern in patterns:
         matches = re.findall(pattern, html_content, re.IGNORECASE)
+
         for match in matches:
-            if len(match) == 2:
-                # Определяем, что является именем файла, а что ID
-                if '.' in match[0] and len(match[1]) > 20:  # match[0] - имя, match[1] - ID
-                    filename = match[0]
-                    file_id = match[1]
-                elif '.' in match[1] and len(match[0]) > 20:  # match[1] - имя, match[0] - ID
-                    filename = match[1]
-                    file_id = match[0]
-                else:
-                    continue
+            if len(match) != 2:
+                continue
 
-                if is_image_file(filename):
-                    files.append({
+            # Определяем что является файлом, а что ID
+            if is_likely_file_id(match[0]) and is_image_file(match[1]):
+                file_id, filename = match[0], match[1]
+            elif is_likely_file_id(match[1]) and is_image_file(match[0]):
+                file_id, filename = match[1], match[0]
+            else:
+                continue
+
+            # Добавляем только уникальные файлы
+            if filename not in found_files:
+                found_files[filename] = {
+                    'filename': filename,
+                    'file_id': file_id,
+                    'view_url': f"https://drive.google.com/file/d/{file_id}/preview"
+                }
+
+    # Дополнительный поиск только имен файлов (без ID)
+    if len(found_files) < 5:  # Если нашли мало файлов, ищем без ID
+        filename_patterns = [
+            r'"([^"]*\.(?:jpg|jpeg|png|gif|bmp|webp))"',
+            r"'([^']*\.(?:jpg|jpeg|png|gif|bmp|webp))'",
+        ]
+
+        for pattern in filename_patterns:
+            matches = re.findall(pattern, html_content, re.IGNORECASE)
+
+            for filename in matches:
+                if is_image_file(filename) and len(filename) > 5 and filename not in found_files:
+                    found_files[filename] = {
                         'filename': filename,
-                        'file_id': file_id,
-                        'view_url': f"https://drive.google.com/file/d/{file_id}/preview"
-                    })
+                        'file_id': None,
+                        'view_url': None
+                    }
 
-    # Убираем дубликаты по имени файла
-    seen_names = set()
-    unique_files = []
-    for file_info in files:
-        if file_info['filename'] not in seen_names:
-            seen_names.add(file_info['filename'])
-            unique_files.append(file_info)
+    return list(found_files.values())
 
-    return unique_files
+
+def is_likely_file_id(text):
+    """Проверяет, похож ли текст на Google Drive file ID"""
+    if not text:
+        return False
+
+    # Google Drive file ID обычно 25-44 символа, содержит буквы, цифры, дефисы, подчеркивания
+    if len(text) < 20 or len(text) > 50:
+        return False
+
+    # Не должен содержать точки (это скорее всего filename)
+    if '.' in text:
+        return False
+
+    # Должен содержать смесь букв и цифр
+    import string
+    has_letters = any(c in string.ascii_letters for c in text)
+    has_digits = any(c in string.digits for c in text)
+
+    return has_letters and has_digits
 
 
 def get_files_alternative_method(folder_id):
