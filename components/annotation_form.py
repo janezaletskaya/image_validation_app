@@ -68,15 +68,6 @@ def render_annotation_form(filename):
             help="Выберите основную категорию одежды"
         )
 
-        # Дополнительные поля (опционально)
-        with st.expander("🔧 Дополнительные настройки"):
-            notes = st.text_area(
-                "Заметки (опционально):",
-                value=current_annotation.get('notes', '') if current_annotation else '',
-                placeholder="Дополнительные комментарии...",
-                help="Любые дополнительные заметки о изображении"
-            )
-
         # Кнопки действий
         col1, col2 = st.columns(2)
 
@@ -88,7 +79,7 @@ def render_annotation_form(filename):
 
         # Обработка отправки формы
         if submit_button:
-            handle_form_submission(filename, validity, gender, category, notes)
+            handle_form_submission(filename, validity, gender, category)
 
         if clear_button:
             handle_clear_annotation(filename)
@@ -96,12 +87,6 @@ def render_annotation_form(filename):
     # Показываем текущую разметку
     if current_annotation:
         show_current_annotation(current_annotation)
-
-    # Дополнительные возможности
-    render_annotation_shortcuts()
-    render_batch_actions()
-    render_annotation_statistics()
-    render_validation_warnings()
 
 
 def get_category_index(current_annotation):
@@ -117,17 +102,22 @@ def get_category_index(current_annotation):
         return 0
 
 
-def handle_form_submission(filename, validity, gender, category, notes=""):
+def handle_form_submission(filename, validity, gender, category):
     """Обрабатывает отправку формы разметки"""
 
-    # Валидация
-    if not gender:
-        st.error("❌ Выберите хотя бы один пол (М или Ж)")
-        return
+    # Для невалидных изображений очищаем пол и категорию
+    if validity == "Невалидно":
+        gender = ""
+        category = ""
+    else:
+        # Валидация для валидных изображений
+        if not gender:
+            st.error("❌ Выберите хотя бы один пол (М или Ж)")
+            return
 
     # Сохраняем разметку
     try:
-        success = save_annotation(filename, validity, gender, category, st.session_state.folder_name, notes)
+        success = save_annotation(filename, validity, gender, category, st.session_state.folder_name)
 
         if success:
             st.success("✅ Разметка сохранена!")
@@ -162,16 +152,23 @@ def show_current_annotation(annotation):
     st.markdown("---")
     st.markdown("#### 📋 Текущая разметка:")
 
-    col1, col2 = st.columns(2)
+    if annotation['validity'] == 'Невалидно':
+        # Для невалидных изображений показываем только валидность
+        st.error("❌ **Невалидное изображение**")
+        st.caption("Пол и категория не указываются для невалидных изображений")
+    else:
+        # Для валидных изображений показываем все поля
+        col1, col2 = st.columns(2)
 
-    with col1:
-        st.metric("Валидность", annotation['validity'])
-        st.metric("Пол", annotation['gender'])
+        with col1:
+            st.metric("Валидность", annotation['validity'])
+            st.metric("Пол", annotation['gender'] if annotation['gender'] else "Не указан")
 
-    with col2:
-        st.metric("Категория", annotation['category'])
-        if annotation.get('notes'):
-            st.caption(f"Заметки: {annotation['notes']}")
+        with col2:
+            st.metric("Категория", annotation['category'] if annotation['category'] else "Не указана")
+
+    if annotation.get('notes'):
+        st.caption(f"💬 Заметки: {annotation['notes']}")
 
 
 def render_quick_actions(filename):

@@ -301,7 +301,7 @@ def show_image_area(filename):
     """Показывает область изображения"""
     st.markdown("### 🖼️ Изображение")
 
-    # Информация о файле
+    # Компактная информация о файле
     st.info(f"📁 **Файл:** {filename}\n📂 **Категория:** {st.session_state.folder_name}")
 
     # Показываем изображение из загруженного архива
@@ -310,9 +310,6 @@ def show_image_area(filename):
             img_path = st.session_state.image_paths[filename]
             img = Image.open(img_path)
             st.image(img, use_container_width=True, caption=filename)
-
-            # Дополнительная информация об изображении
-            st.caption(f"Размер: {img.size[0]}×{img.size[1]} пикселей")
 
         except Exception as e:
             st.error(f"❌ Ошибка загрузки изображения: {str(e)}")
